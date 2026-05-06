@@ -7,7 +7,7 @@
       "/package.json",
       "/package-lock.json"
     ],
-    "buildCommand": "npm run prisma:generate --workspace backend && npm run build --workspace backend"
+    "buildCommand": "npm ci --include=dev && npm run prisma:generate --workspace backend && npm run build --workspace backend"
   },
   "deploy": {
     "preDeployCommand": ["npm run prisma:deploy --workspace backend"],
