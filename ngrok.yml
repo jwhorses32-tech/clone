@@ -1,0 +1,10 @@
+version: "3"
+agent:
+    authtoken: 3DK8LQipJQYBF0afKi4Ax13uT5I_5fuE4VkZLTofvnfLjJECU
+endpoints:
+  - name: frontend
+    upstream:
+      url: http://127.0.0.1:3000
+  - name: backend
+    upstream:
+      url: http://127.0.0.1:3001

@@ -1,0 +1,21 @@
+{
+  "name": "gr",
+  "version": "1.0.0",
+  "description": "Gaming credits platform monorepo",
+  "private": true,
+  "dependencies": {
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1"
+  },
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace frontend",
+    "dev:backend": "npm run start:dev --workspace backend",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
+    "ngrok": "ngrok start --config ngrok.yml frontend backend"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}

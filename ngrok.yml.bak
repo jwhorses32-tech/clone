@@ -1,0 +1,19 @@
+# Ngrok agent config (classic tunnels — works with `ngrok start frontend backend`).
+# Keep your authtoken OUT of this file; run once: ngrok config add-authtoken <TOKEN>
+# That saves the token to your user config; ngrok merges it when you pass --config below.
+#
+# From this repo root (PowerShell):
+#   ngrok start --config .\ngrok.yml frontend backend
+#
+# Default config locations on Windows if you prefer copying this file there instead:
+#   %LOCALAPPDATA%\ngrok\ngrok.yml   (ngrok v3+)
+#   %USERPROFILE%\.ngrok2\ngrok.yml  (older installs)
+
+version: 3
+endpoints:
+  - name: frontend
+    upstream:
+      url: http://127.0.0.1:3000
+  - name: backend
+    upstream:
+      url: http://127.0.0.1:3001

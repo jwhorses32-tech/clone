@@ -1,0 +1,467 @@
+// Polapine-style orchestration SaaS + legacy gaming credits models
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Legacy gaming credits (kept for compatibility) ---
+
+enum PaymentOrderStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum LedgerEntryType {
+  CREDIT
+  DEBIT
+}
+
+// --- Polapine orchestration ---
+
+enum UserRole {
+  USER
+  STAFF
+  ADMIN
+}
+
+enum TenantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  DEV
+  VIEWER
+}
+
+enum MerchantPaymentStatus {
+  CREATED
+  ROUTING
+  AUTHORIZED
+  CAPTURED
+  SETTLED
+  FAILED
+  REFUNDED
+  DISPUTED
+  CANCELED
+}
+
+enum AttemptStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  EXPIRED
+}
+
+enum PaymentLinkStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  DISABLED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum BlocklistType {
+  EMAIL
+  CARD_FINGERPRINT
+  DEVICE
+  IP
+}
+
+enum RiskRuleAction {
+  ALLOW
+  BLOCK
+  REVIEW
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  displayName            String?
+  passwordHash           String?
+  pinHash                String?
+  emailVerifiedAt        DateTime?
+  role                   UserRole  @default(USER)
+  emailVerificationToken String?   @unique
+  passwordResetToken     String?   @unique
+  passwordResetExpires   DateTime?
+  pinResetToken          String?   @unique
+  pinResetExpires        DateTime?
+  isActive               Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  wallet       Wallet?
+  orders       PaymentOrder[]
+  memberships Membership[]
+  auditLogs   AuditLog[] @relation("AuditActor")
+}
+
+model Wallet {
+  id        String        @id @default(cuid())
+  userId    String        @unique
+  balance   Int           @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User          @relation(fields: [userId], references: [id])
+  entries   LedgerEntry[]
+}
+
+model LedgerEntry {
+  id             String          @id @default(cuid())
+  walletId       String
+  orderId        String?
+  type           LedgerEntryType
+  amount         Int
+  currency       String          @default("USD")
+  description    String
+  idempotencyKey String          @unique
+  createdAt      DateTime        @default(now())
+  wallet         Wallet          @relation(fields: [walletId], references: [id])
+  order          PaymentOrder?   @relation(fields: [orderId], references: [id])
+
+  @@index([walletId, createdAt])
+}
+
+model PaymentOrder {
+  id              String             @id @default(cuid())
+  userId          String
+  amount          Int
+  currency        String             @default("USD")
+  creditAmount    Int
+  provider        String
+  providerOrderId String?            @unique
+  status          PaymentOrderStatus @default(PENDING)
+  idempotencyKey  String             @unique
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  user            User               @relation(fields: [userId], references: [id])
+  events          PaymentEvent[]
+  ledgerEntries   LedgerEntry[]
+}
+
+model PaymentEvent {
+  id              String       @id @default(cuid())
+  orderId         String
+  providerEventId String       @unique
+  eventType       String
+  payload         Json
+  createdAt       DateTime     @default(now())
+  order           PaymentOrder @relation(fields: [orderId], references: [id])
+
+  @@index([orderId, createdAt])
+}
+
+model Tenant {
+  id           String       @id @default(cuid())
+  brandSlug    String       @unique
+  displayName  String
+  status       TenantStatus @default(PENDING)
+  planId       String?
+  depositCents Int          @default(0)
+  monthlyVolumeCents Int    @default(0)
+  kycApprovedAt DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  plan            Plan?              @relation(fields: [planId], references: [id])
+  memberships     Membership[]
+  apiKeys         ApiKey[]
+  merchantGateways MerchantGateway[]
+  paymentLinks    PaymentLink[]
+  invoices        Invoice[]
+  paymentTransactions PaymentTransaction[]
+  webhookEndpoints WebhookEndpoint[]
+  blocklistEntries BlocklistEntry[]
+  riskRules       RiskRule[]
+  subscriptions   Subscription[]
+  securityDeposits SecurityDeposit[]
+  auditLogs       AuditLog[]
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  tenantId  String
+  role      MembershipRole @default(DEV)
+  createdAt DateTime       @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  tenantId    String
+  publicKey   String   @unique
+  secretHash  String
+  name        String?
+  scopes      String[] @default(["read", "write"])
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+  revokedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Gateway {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  displayName  String
+  capabilities String[] @default([])
+  isActive     Boolean  @default(true)
+
+  merchantGateways MerchantGateway[]
+  attempts         PaymentTransactionAttempt[]
+}
+
+model MerchantGateway {
+  id             String   @id @default(cuid())
+  tenantId       String
+  gatewayId      String
+  encryptedCreds String   @default("{}")
+  status         String   @default("active")
+  weight         Int      @default(100)
+  successRate    Float    @default(0.85)
+  costFactor     Float    @default(1.0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  gateway Gateway @relation(fields: [gatewayId], references: [id])
+
+  @@unique([tenantId, gatewayId])
+  @@index([tenantId])
+}
+
+model Plan {
+  id                 String @id @default(cuid())
+  slug               String @unique
+  name               String
+  monthlyVolumeMinCents Int  @default(0)
+  monthlyVolumeMaxCents Int?
+  depositCents       Int    @default(0)
+  sortOrder          Int    @default(0)
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id           String             @id @default(cuid())
+  tenantId     String
+  planId       String
+  status       SubscriptionStatus @default(ACTIVE)
+  depositPaidAt DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([tenantId])
+}
+
+model SecurityDeposit {
+  id        String   @id @default(cuid())
+  tenantId  String
+  amountCents Int
+  currency  String   @default("USD")
+  stripePaymentIntentId String?
+  status    String   @default("pending")
+  refundedAt DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  tenantId       String
+  orderReference String
+  amountCents    Int
+  currency       String        @default("USD")
+  status         InvoiceStatus @default(OPEN)
+  webhookUrl     String?
+  expiresAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions PaymentTransaction[]
+  paymentLinks PaymentLink[]
+
+  @@index([tenantId, createdAt])
+  @@index([orderReference, tenantId])
+}
+
+model PaymentLink {
+  id         String            @id @default(cuid())
+  tenantId   String
+  invoiceId  String?
+  amountCents Int
+  currency   String            @default("USD")
+  status     PaymentLinkStatus @default(ACTIVE)
+  hostedPath String            @unique
+  expiresAt  DateTime?
+  createdAt  DateTime          @default(now())
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+
+  @@index([tenantId])
+}
+
+model PaymentTransaction {
+  id                   String                @id @default(cuid())
+  tenantId             String
+  invoiceId            String?
+  amountCents          Int
+  currency             String                @default("USD")
+  status               MerchantPaymentStatus @default(CREATED)
+  customerFingerprint  String?
+  riskScore            Float?
+  idempotencyKey       String?               @unique
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  tenant   Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice  Invoice?                    @relation(fields: [invoiceId], references: [id])
+  attempts PaymentTransactionAttempt[]
+
+  @@index([tenantId, status, createdAt])
+}
+
+model PaymentTransactionAttempt {
+  id            String        @id @default(cuid())
+  transactionId String
+  gatewayId     String
+  status        AttemptStatus @default(PENDING)
+  gatewayRef    String?
+  latencyMs     Int?
+  errorCode     String?
+  rawResponse   Json?
+  createdAt     DateTime      @default(now())
+
+  transaction PaymentTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  gateway     Gateway          @relation(fields: [gatewayId], references: [id])
+
+  @@index([transactionId])
+}
+
+model WebhookEndpoint {
+  id        String   @id @default(cuid())
+  tenantId  String
+  url       String
+  secret    String
+  events    String[] @default([])
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+}
+
+model WebhookDelivery {
+  id             String                @id @default(cuid())
+  endpointId     String
+  eventId        String
+  eventType      String
+  payload        Json
+  attempts       Int                   @default(0)
+  nextAttemptAt  DateTime?
+  lastStatus     WebhookDeliveryStatus   @default(PENDING)
+  lastError      String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([lastStatus, nextAttemptAt])
+}
+
+model BlocklistEntry {
+  id        String        @id @default(cuid())
+  tenantId  String?
+  type      BlocklistType
+  value     String
+  reason    String?
+  createdAt DateTime      @default(now())
+  expiresAt DateTime?
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, type, value])
+  @@index([type, value])
+}
+
+model RiskRule {
+  id        String         @id @default(cuid())
+  tenantId  String
+  name      String
+  expression String
+  action    RiskRuleAction @default(BLOCK)
+  priority  Int            @default(0)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, priority])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  tenantId  String?
+  action    String
+  target    String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  actor  User?   @relation("AuditActor", fields: [actorId], references: [id])
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([actorId, createdAt])
+}
