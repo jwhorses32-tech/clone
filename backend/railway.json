@@ -1,11 +1,16 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "buildCommand": "npm ci && npx prisma generate && npm run build"
+    "watchPatterns": [
+      "/backend/**",
+      "/package.json",
+      "/package-lock.json"
+    ],
+    "buildCommand": "npm ci && npm run prisma:generate --workspace backend && npm run build --workspace backend"
   },
   "deploy": {
-    "preDeployCommand": ["npx prisma migrate deploy"],
-    "startCommand": "npm run start:prod",
+    "preDeployCommand": ["npm run prisma:deploy --workspace backend"],
+    "startCommand": "npm run start:prod --workspace backend",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE"

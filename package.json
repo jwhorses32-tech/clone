@@ -12,7 +12,12 @@
     "dev:backend": "npm run start:dev --workspace backend",
     "build": "npm run build --workspace backend && npm run build --workspace frontend",
     "lint": "npm run lint --workspace backend && npm run lint --workspace frontend",
-    "ngrok": "ngrok start --config ngrok.yml frontend backend"
+    "ngrok": "ngrok start --config ngrok.yml frontend backend",
+    "railway:backend:build": "npm ci && npm run prisma:generate --workspace backend && npm run build --workspace backend",
+    "railway:backend:start": "npm run start:prod --workspace backend",
+    "railway:backend:migrate": "npm run prisma:deploy --workspace backend",
+    "railway:frontend:build": "npm ci && npm run build --workspace frontend",
+    "railway:frontend:start": "npm run start --workspace frontend"
   },
   "workspaces": [
     "backend",

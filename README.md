@@ -43,6 +43,25 @@ NestJS **backend** (`backend/`) + Next.js **frontend** (`frontend/`) implementin
    - Create **API keys** in the dashboard; call `POST /api/v1/create-invoice` with `X-API-Key` / `X-API-Secret` and `brand_slug` matching the tenant.
    - Open `payment_url` from the response and complete checkout (mock gateway).
 
+## Railway (monorepo)
+
+Railway’s config-as-code file **does not follow** the service **Root Directory** setting. If `railway.json` sits only under `backend/` or `frontend/`, point each service at it explicitly.
+
+For **two services** from this repo (API + web), use a **shared workspace build from the repo root**:
+
+1. Create two Railway services connected to the same GitHub repo.
+2. For **both** services, set **Root Directory** to **`/`** (repository root), so `npm ci` can install workspaces.
+3. Open **each service → Settings → Config-as-code** (or equivalent) and set the **config file path** to an absolute repo path:
+   - API: **`/backend/railway.json`**
+   - Web: **`/frontend/railway.json`**
+4. Redeploy. The checked-in configs run workspace-scoped Prisma/build/start commands from the monorepo root.
+
+Alternatively, omit config-as-code and set **Build** / **Start** / **Pre-deploy** in the dashboard to the root scripts: `railway:backend:build`, `railway:backend:migrate` (pre-deploy), `railway:backend:start`, and `railway:frontend:build` / `railway:frontend:start`.
+
+Set **`NEXT_PUBLIC_API_URL`** on the frontend service to `https://<your-api-host>/api`, and **`FRONTEND_URL`** on the API to your frontend’s public URL.
+
+If you prefer **Root Directory = `/backend`** (isolated) on the API service, skip the workspace-based config file and use dashboard commands instead (`npm ci`, `npx prisma generate`, `npm run build`, `npm run start:prod`, pre-deploy `npx prisma migrate deploy`), all run from that folder.
+
 ## Compliance
 
 See [docs/COMPLIANCE.md](docs/COMPLIANCE.md) before going live.

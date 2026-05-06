@@ -1,10 +1,15 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "buildCommand": "npm ci && npm run build"
+    "watchPatterns": [
+      "/frontend/**",
+      "/package.json",
+      "/package-lock.json"
+    ],
+    "buildCommand": "npm ci && npm run build --workspace frontend"
   },
   "deploy": {
-    "startCommand": "npm run start",
+    "startCommand": "npm run start --workspace frontend",
     "restartPolicyType": "ON_FAILURE"
   }
 }
