@@ -22,6 +22,7 @@ async function bootstrap() {
       /^http:\/\/localhost:\d+$/,
       /^https:\/\/[\w.-]+\.ngrok-free\.app$/,
       /^https:\/\/[\w.-]+\.ngrok-free\.dev$/,
+      /^https:\/\/[\w.-]+\.railway\.app$/,
     ],
     credentials: true,
   });
