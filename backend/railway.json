@@ -3,6 +3,7 @@
   "build": {
     "watchPatterns": [
       "/backend/**",
+      "/backend/dist/**",
       "/package.json",
       "/package-lock.json"
     ],
